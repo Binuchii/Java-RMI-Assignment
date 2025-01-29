@@ -1,85 +1,58 @@
-import java.rmi.RemoteException;
-import java.rmi.server.UnicastRemoteObject;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.rmi.RemoteException;
+import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
 public class ApplicationHandlerImpl extends UnicastRemoteObject implements ApplicationHandler {
-    private static final long serialVersionUID = 1L;
-    private static final String VALID_USERNAME = "student";
-    private static final String VALID_PASSWORD = "password123";
-    private Map<Long, Long> activeSessions;
-    private static final long SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    private final Map<Long, Boolean> activeSessions;
+    private final String validUsername = "admin";
+    private final String validPassword = "password";
 
-    public ApplicationHandlerImpl() throws RemoteException {
-        super();
+    protected ApplicationHandlerImpl() throws RemoteException {
         activeSessions = new HashMap<>();
     }
 
     @Override
     public long login(String username, String password) throws RemoteException, InvalidCredentialsException {
-        System.out.println("Login attempt - Username: " + username);
+        if (username.equals(validUsername) && password.equals(validPassword)) {
+            long sessionID = new Random().nextLong();
+            activeSessions.put(sessionID, true);
+            System.out.println("User logged in successfully. Session ID: " + sessionID);
+            return sessionID;
+        } else {
+            throw new InvalidCredentialsException("Invalid username or password.");
+        }
+    }
 
-        if (VALID_USERNAME.equals(username) && VALID_PASSWORD.equals(password)) {
-            long sessionId = generateSessionId();
-            activeSessions.put(sessionId, System.currentTimeMillis());
-            System.out.println("Login successful - Session ID: " + sessionId);
-            return sessionId;
+    @Override
+    public ApplicationForm downloadApplicationForm(long sessionID) throws RemoteException, InvalidSessionIDException {
+        if (activeSessions.containsKey(sessionID)) {
+            return new ApplicationFormV1();
+        } else {
+            throw new InvalidSessionIDException("Invalid session ID.");
+        }
+    }
+
+    @Override
+    public void submitApplicationForm(long sessionID, ApplicationForm form) throws RemoteException, InvalidSessionIDException {
+        if (!activeSessions.containsKey(sessionID)) {
+            throw new InvalidSessionIDException("Invalid session ID.");
         }
 
-        throw new InvalidCredentialsException("Invalid username or password");
-    }
-
-    @Override
-    public ApplicationForm downloadApplicationForm(long sessionId)
-            throws RemoteException, InvalidSessionIDException {
-        validateSession(sessionId);
-        System.out.println("Downloading application form for session: " + sessionId);
-        return new ApplicationFormV1();
-    }
-
-    @Override
-    public void submitApplicationForm(long sessionId, ApplicationForm form)
-            throws RemoteException, InvalidSessionIDException {
-        validateSession(sessionId);
-        System.out.println("Receiving application form submission for session: " + sessionId);
-
-        try {
-            ApplicationFormV1 formV1 = (ApplicationFormV1) form;
-            String firstName = formV1.getAnswer(1);
-            String lastName = formV1.getAnswer(2);
-            String filename = firstName + "_" + lastName + "_application.txt";
-
-            try (FileWriter writer = new FileWriter(filename)) {
-                writer.write(form.toString());
-                System.out.println("Application saved to file: " + filename);
-            }
+        String fileName = form.getAnswer(0) + ".txt";
+        try (FileWriter writer = new FileWriter(fileName)) {
+            writer.write("Full Name: " + form.getAnswer(0) + "\n" + "Address: " + form.getAnswer(1) + "\n" +
+                    "Email: " + form.getAnswer(2) + "\n" +
+                    "Contact Number: " + form.getAnswer(3) + "\n"+
+                    "Personal Statement: " + form.getAnswer(4) + "\n");
+            System.out.println("Application form saved as " + fileName);
         } catch (IOException e) {
-            System.err.println("Error saving application: " + e.getMessage());
-            throw new RemoteException("Failed to save application", e);
-        } catch (InvalidQuestionException e) {
-            System.err.println("Error accessing form data: " + e.getMessage());
-            throw new RemoteException("Failed to process application", e);
+            e.printStackTrace();
         }
     }
 
-    private long generateSessionId() {
-        return new Random().nextLong() & Long.MAX_VALUE;
-    }
 
-    private void validateSession(long sessionId) throws InvalidSessionIDException {
-        Long timestamp = activeSessions.get(sessionId);
-        if (timestamp == null) {
-            throw new InvalidSessionIDException("Invalid or expired session ID");
-        }
-
-        if (System.currentTimeMillis() - timestamp > SESSION_TIMEOUT) {
-            activeSessions.remove(sessionId);
-            throw new InvalidSessionIDException("Session has expired");
-        }
-
-        activeSessions.put(sessionId, System.currentTimeMillis());
-    }
 }

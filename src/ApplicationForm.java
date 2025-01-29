@@ -1,16 +1,10 @@
-import java.io.Serializable;
+import java.rmi.Remote;
+import java.rmi.RemoteException;
 
-public interface ApplicationForm extends Serializable {
-    String getFormInformation();
-    int getTotalQuestions();
-    String getQuestion(int questionNumber) throws InvalidQuestionException;
-    void setAnswer(int questionNumber, String answer) throws InvalidQuestionException;
-    String getAnswer(int questionNumber) throws InvalidQuestionException;
-}
-
-class InvalidQuestionException extends Exception {
-    private static final long serialVersionUID = 1L;
-    public InvalidQuestionException(String message) {
-        super(message);
-    }
+public interface ApplicationForm extends Remote {
+    String getFormInfo() throws RemoteException; // Correct method name
+    int getNumberOfQuestions() throws RemoteException;
+    String getQuestion(int questionNumber) throws RemoteException;
+    void answerQuestion(int questionNumber, String answer) throws RemoteException;
+    String getAnswer(int questionNumber) throws RemoteException;
 }
